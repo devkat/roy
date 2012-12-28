@@ -839,7 +839,7 @@ var main = function() {
 
         exported = {};
         var outputPath =
-            (outputDir === null
+            (outputDir === undefined
                 ? filename
                 : Path.join(outputDir, Path.basename(filename)))
             .replace(extensions, '.js');
