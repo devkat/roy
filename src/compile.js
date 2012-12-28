@@ -708,9 +708,9 @@ var main = function() {
         info = JSON.parse(FS.readFileSync(Path.dirname(__dirname) + '/package.json', 'utf8'));
 
     var cli = require('optimist')
-        .usage("Roy: " + info.description + "\n"
-            + "Usage: $0 [-v] [-r file] [-p] [-c] [-h] [-o] [path ...]\n\n"
-            + "  path: .roy|.royl file or directory containing such files")
+        .usage("Roy: " + info.description + "\n" +
+            "Usage: $0 [-v] [-r file] [-p] [-c] [-h] [-o] [path ...]\n\n" +
+            "  path: .roy|.royl file or directory containing such files")
         .options({
             v: {alias: 'version', describe: 'show current version'},
             r: {describe:'run Roy-code without JavaScript output'},
@@ -722,8 +722,6 @@ var main = function() {
             b: {alias: 'browser', describe: '?'}
         }),
         argv = cli.argv;
-    
-    var files
     
     // Meta-commands configuration
     var opts = {
@@ -839,17 +837,10 @@ var main = function() {
 
         exported = {};
         var outputPath =
-            (outputDir === undefined
-                ? filename
-                : Path.join(outputDir, Path.basename(filename)))
+            (outputDir === undefined ? filename : Path.join(outputDir, Path.basename(filename)))
             .replace(extensions, '.js');
         
-        // workaround, see https://groups.google.com/forum/?fromgroups=#!topic/roylang/ojrV44bs7C4
-        var oldSetTimeout = setTimeout;
-        setTimeout = undefined;
         var SourceMapGenerator = require('source-map').SourceMapGenerator;
-        setTimeout = oldSetTimeout;
-        
         var sourceMap = new SourceMapGenerator({file: Path.basename(outputPath)});
 
         var compiled = compile(source, env, aliases, {
