@@ -20,8 +20,10 @@ var grammar = {
 
     "bnf": {
         "program": [
-            ["EOF", "return [];"],
-            ["body EOF", "return $1;"]
+            ["EOF", "return new yy.Module([]);"],
+            ["SHEBANG TERMINATOR body EOF", "return new yy.Module($3);"],
+            ["SHEBANG TERMINATOR EOF", "return new yy.Module([]);"],
+            ["body EOF", "return new yy.Module($1);"]
         ],
         "body": [
             ["line", "$$ = [$1];"],
@@ -55,8 +57,7 @@ var grammar = {
             ["dataDecl", "$$ = $1;"],
             ["typeDecl", "$$ = $1;"],
             ["typeClassDecl", "$$ = $1;"],
-            ["instanceDecl", "$$ = $1;"],
-            ["macro", "$$ = $1;"]
+            ["instanceDecl", "$$ = $1;"]
         ],
         "expression": [
             ["innerExpression", "$$ = $1;"],
@@ -67,10 +68,8 @@ var grammar = {
             ["ifThenElse", "$$ = $1;"]
         ],
         "callArgument": [
-            ["( expression )", n("$$ = new yy.Expression($2);")],
-            ["& ( expression )", n("$$ = new yy.Replacement($3);")],
+            ["( expression )", n("$$ = $2;")],
             ["! ( expression )", n("$$ = new yy.UnaryBooleanOperator($1, $3);")],
-            ["[| expression |]", n("$$ = new yy.Quoted($2);")],
             ["accessor", "$$ = $1;"],
             ["callArgument @ callArgument", n("$$ = new yy.Access($1, $3);")],
             ["callArgument MATH callArgument", n("$$ = new yy.BinaryNumberOperator($2, $1, $3);")],
@@ -146,10 +145,6 @@ var grammar = {
             ["INSTANCE IDENTIFIER = IDENTIFIER type object", "$$ = new yy.Instance($2, $4, $5, $6);"]
         ],
 
-        "macro": [
-            ["MACRO IDENTIFIER = expression", n("$$ = new yy.Macro($2, [$4]);")],
-            ["MACRO IDENTIFIER = block", n("$$ = new yy.Macro($2, $4);")]
-        ],
         "function": [
             ["IDENTIFIER paramList optType = block optWhere", n("$$ = new yy.Function($1, $2, $5, $3, $6);")],
             ["IDENTIFIER paramList optType = expression", n("$$ = new yy.Function($1, $2, [$5], $3, []);")]
@@ -174,7 +169,7 @@ var grammar = {
         ],
         "optWhere": [
             ["", "$$ = [];"],
-            ["WHERE INDENT whereDecls outdentOrEof", "$$ = $3;"] 
+            ["WHERE INDENT whereDecls outdentOrEof", "$$ = $3;"]
         ],
         "whereDecls": [
             ["whereDecl", "$$ = [$1];"],
@@ -232,7 +227,13 @@ var grammar = {
         "keyPairs": [
             ["keywordOrIdentifier : expression", "$$ = {}; $$[$1] = $3;"],
             ["keyPairs , keywordOrIdentifier : expression", "$$ = $1; $1[$3] = $5;"],
-            ["keyPairs TERMINATOR optTerm keywordOrIdentifier : expression", "$$ = $1; $1[$4] = $6;"]
+            ["keyPairs TERMINATOR optTerm keywordOrIdentifier : expression", "$$ = $1; $1[$4] = $6;"],
+            ["STRING : expression", "$$ = {}; $$[$1] = $3;"],
+            ["keyPairs , STRING : expression", "$$ = $1; $1[$3] = $5;"],
+            ["keyPairs TERMINATOR optTerm STRING : expression", "$$ = $1; $1[$4] = $6;"],
+            ["NUMBER : expression", "$$ = {}; $$[$1] = $3;"],
+            ["keyPairs , NUMBER : expression", "$$ = $1; $1[$3] = $5;"],
+            ["keyPairs TERMINATOR optTerm NUMBER : expression", "$$ = $1; $1[$4] = $6;"]
         ],
         "optTerm": [
             ["", ""],

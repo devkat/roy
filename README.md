@@ -1,9 +1,8 @@
-# Roy
+# Roy [![Build Status](https://travis-ci.org/puffnfresh/roy.png?branch=master)](https://travis-ci.org/puffnfresh/roy)
 Roy is a small functional language that compiles to JavaScript. It has a few main features:
 
 * Damas-Hindley-Milner type inference
 * Whitespace significant syntax
-* Compile-time meta-programming
 * Simple tagged unions
 * Pattern matching
 * Structural typing
@@ -55,12 +54,19 @@ See the examples directory for more.
 ## License
 MIT
 
+## Editor Support
+* [Vim](https://github.com/jb55/Vim-Roy)
+* [Emacs](https://github.com/folone/roy-mode)
+* [Chocolat, SublimeText2, TextMate](https://github.com/paulmillr/roy.tmbundle)
+* [SublimeText](https://github.com/joneshf/sublime-roy)
+
 ## Resources
 * Roy website: http://roy.brianmckenna.org/
 * Roy Google Group: http://groups.google.com/group/roylang
 * Roy docs: http://guide.roylang.org/
 * Roy Twitter: http://twitter.com/roylangjs
 * Bitbucket repo: https://bitbucket.org/puffnfresh/roy
-* GitHub repo: https://github.com/pufuwozu/roy
+* GitHub repo: https://github.com/puffnfresh/roy
 * Brian's blog: http://brianmckenna.org/
-* altJS channel: irc://irc.freenode.net/altJS
+* altJS channel: [irc://irc.freenode.net/altJS](irc://irc.freenode.net/#altJS)
+* roy channel: [irc://irc.freenode.net/roy](irc://irc.freenode.net/#roy)

@@ -1,4 +1,5 @@
-var unicode = require('unicode-categories');
+var unicode = require('unicode-categories'),
+    _ = require('underscore');
 
 // http://es5.github.com/#x7.6
 // ECMAscript identifier starts with `$`, `_`,
@@ -10,58 +11,53 @@ var IDENTIFIER = new RegExp(
     unicode.ECMA.identifier.source.replace('\\u03BB', '')
 );
 
-var NUMBER = /^-?[0-9]+(\.[0-9]+)?(e-?[0-9]+)?/;
+var NUMBER = /^-?[0-9]+(\.[0-9]+)?([eE][\-\+]?[0-9]+)?/;
+var STRING = /^(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/;
 var COMMENT = /^\/\/.*/;
 var WHITESPACE = /^[^\n\S]+/;
 var INDENT = /^(?:\n[^\n\S]*)+/;
 var GENERIC = /^#([a-z]+)/;
+var SHEBANG = /^#!.*/;
 
-var chunk;
+var keywordTokens = {
+    'true':      'BOOLEAN',
+    'false':     'BOOLEAN',
+    'Function':  'FUNCTION',
+    'let':       'LET',
+    'if':        'IF',
+    'instance':  'INSTANCE',
+    'then':      'THEN',
+    'else':      'ELSE',
+    'data':      'DATA',
+    'type':      'TYPE',
+    'typeclass': 'TYPECLASS',
+    'match':     'MATCH',
+    'case':      'CASE',
+    'do':        'DO',
+    'return':    'RETURN',
+    'with':      'WITH',
+    'where':     'WHERE'
+};
+
 var indent;
 var indents;
 var tokens;
 var lineno;
 
-var identifierToken = function() {
-    var value,
-        name,
-        token = IDENTIFIER.exec(chunk);
+var identifierToken = function(chunk) {
+    var token = IDENTIFIER.exec(chunk);
+
     if(token) {
-        value = token[0];
-        switch(value) {
-        case 'true':
-        case 'false':
-            name = 'BOOLEAN';
-            break;
-        case 'Function':
-        case 'let':
-        case 'if':
-        case 'instance':
-        case 'then':
-        case 'else':
-        case 'data':
-        case 'type':
-        case 'typeclass':
-        case 'match':
-        case 'case':
-        case 'do':
-        case 'return':
-        case 'macro':
-        case 'with':
-        case 'where':
-            name = value.toUpperCase();
-            break;
-        default:
-            name = 'IDENTIFIER';
-            break;
-        }
+        var value = token[0],
+            name = keywordTokens[value] || 'IDENTIFIER';
+
         tokens.push([name, value, lineno]);
         return token[0].length;
     }
     return 0;
 };
 
-var numberToken = function() {
+var numberToken = function(chunk) {
     var token = NUMBER.exec(chunk);
     if(token) {
         tokens.push(['NUMBER', token[0], lineno]);
@@ -70,29 +66,17 @@ var numberToken = function() {
     return 0;
 };
 
-var stringToken = function() {
-    var firstChar = chunk.charAt(0),
-        quoted = false,
-        nextChar;
-    if(firstChar == '"' || firstChar == "'") {
-        for(var i = 1; i < chunk.length; i++) {
-            if(!quoted) {
-                nextChar = chunk.charAt(i);
-                if(nextChar == "\\") {
-                    quoted = true;
-                } else if(nextChar == firstChar) {
-                    tokens.push(['STRING', chunk.substring(0, i + 1), lineno]);
-                    return i + 1;
-                }
-            } else {
-                quoted = false;
-            }
-        }
-    }
-    return 0;
+var stringToken = function(chunk) {
+  var token = STRING.exec(chunk);
+  if (token) {
+    tokens.push(['STRING', token[0], lineno]);
+    return token[0].length;
+
+  }
+  return 0;
 };
 
-var genericToken = function() {
+var genericToken = function(chunk) {
     var token = GENERIC.exec(chunk);
     if(token) {
         tokens.push(['GENERIC', token[1], lineno]);
@@ -101,7 +85,7 @@ var genericToken = function() {
     return 0;
 };
 
-var commentToken = function() {
+var commentToken = function(chunk) {
     var token = COMMENT.exec(chunk);
     if(token) {
         tokens.push(['COMMENT', token[0], lineno]);
@@ -110,7 +94,7 @@ var commentToken = function() {
     return 0;
 };
 
-var whitespaceToken = function() {
+var whitespaceToken = function(chunk) {
     var token = WHITESPACE.exec(chunk);
     if(token) {
         return token[0].length;
@@ -124,12 +108,11 @@ var lineContinuer = {
     "where": true
 };
 
-var lineToken = function() {
+var lineToken = function(chunk) {
     var token = INDENT.exec(chunk);
     if(token) {
         var lastNewline = token[0].lastIndexOf("\n") + 1;
         var size = token[0].length - lastNewline;
-        var terminated = false;
         if(size > indent) {
             indents.push(size);
             tokens.push(['INDENT', size - indent, lineno]);
@@ -150,13 +133,14 @@ var lineToken = function() {
                 }
             }
         }
+
         indent = size;
         return token[0].length;
     }
     return 0;
 };
 
-var literalToken = function() {
+var literalToken = function(chunk) {
     var tag = chunk.slice(0, 1);
     var next;
     switch(tag) {
@@ -209,12 +193,7 @@ var literalToken = function() {
     case '[':
     case '|':
         next = chunk.slice(0, 2);
-        switch(next) {
-        case '[|':
-        case '|]':
-            tokens.push([next, next, lineno]);
-            return 2;
-        case '||':
+        if(next == '||') {
             tokens.push(['BOOLOP', next, lineno]);
             return 2;
         }
@@ -248,8 +227,7 @@ var literalToken = function() {
             tokens.push(['BOOLOP', next, lineno]);
             return 2;
         }
-        tokens.push([tag, tag, lineno]);
-        return 1;
+        return 0;
     case 'λ':
     case '\\':
         tokens.push(['LAMBDA', tag, lineno]);
@@ -277,21 +255,45 @@ var literalToken = function() {
     return 0;
 };
 
-exports.tokenise = function(source) {
+var shebangToken = function(chunk) {
+    var token = SHEBANG.exec(chunk);
+    if (token) {
+        tokens.push(['SHEBANG', token[0], lineno]);
+        return token[0].length;
+    }
+    return 0;
+};
+
+var tokenise = function(source, tokenizers) {
     /*jshint boss:true*/
-    indent = 0;
-    indents = [];
-    tokens = [];
-    lineno = 0;
-    var i = 0;
+    var i = 0, chunk;
+
+    function getDiff(chunk) {
+        return _.foldl(tokenizers, function(diff, tokenizer) {
+            return diff ? diff : tokenizer.apply(tokenizer, [chunk]);
+        }, 0);
+    }
+
     while(chunk = source.slice(i)) {
-        var diff = identifierToken() || numberToken() || stringToken() || genericToken() || commentToken() || whitespaceToken() || lineToken() || literalToken();
+        var diff = getDiff(chunk);
         if(!diff) {
             throw "Couldn't tokenise: " + chunk.substring(0, chunk.indexOf("\n") > -1 ? chunk.indexOf("\n") : chunk.length);
         }
         lineno += source.slice(i, i + diff).split('\n').length - 1;
         i += diff;
     }
-    tokens.push(['EOF', '', lineno]);
+
     return tokens;
+};
+
+exports.tokenise = function(source) {
+    indent = 0;
+    indents = [];
+    tokens = [];
+    lineno = 0;
+    
+    return tokenise(source, [identifierToken, numberToken,
+            stringToken, genericToken, commentToken, whitespaceToken,
+            lineToken, literalToken, shebangToken]
+            ).concat([['EOF', '', lineno]]);
 };

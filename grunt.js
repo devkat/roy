@@ -9,8 +9,16 @@ module.exports = function(grunt) {
             './lib/typeparser.js': './src/typegrammar.js',
             './lib/parser.js': './src/grammar.js'
         },
-        rigger: {
-            'roy.js': 'rigger-roy.js'
+        cjsify: {
+            'roy.js': {
+                entry: 'src/compile.js',
+                dir: __dirname,
+                options: {
+                    'export': 'roy',
+                    'ignoreMissing': true,
+                    'node': false
+                }
+            }
         },
         jasmine: {
             src: './test'
@@ -27,29 +35,37 @@ module.exports = function(grunt) {
                 files: ['./src/*.js', './test/*Spec.js'],
                 tasks: 'jasmine'
             }
+        },
+        jshint: {
+            options: {
+                es3: true,
+                indent: 4,
+                noarg: true,
+                node: true,
+                trailing: true,
+                undef: true,
+                unused: true
+            }
         }
     });
 
     grunt.registerMultiTask('jison', 'Parser generator by jison.', function() {
         var Parser = require('jison').Parser,
             grammar = require(this.data).grammar;
-            parser = new Parser(grammar, {debug: true}),
+            parser = new Parser(grammar, {debug: grunt.option('debug')}),
             fs = require('fs');
 
         fs.writeFileSync(this.target, parser.generate());
     });
 
-    grunt.registerMultiTask('rigger', 'File concatentation by rigger.', function() {
-        var rigger = require('rigger'),
-            fs = require('fs'),
-            done = this.async(),
-            target = this.target;
+    grunt.registerMultiTask('cjsify', 'Bundling by commonjs-everywhere.', function() {
+        var cjsify = require('commonjs-everywhere').cjsify,
+            escodegen = require('escodegen'),
+            target = this.target,
+            ast = cjsify(this.data.entry, this.data.dir, this.data.options),
+            output = escodegen.generate(ast);
 
-        rigger(this.data, function(err, output) {
-            if(err) return grunt.log.error(err);
-            fs.writeFileSync(target, output);
-            done(true);
-        });
+        grunt.file.write(target, output);
     });
 
     // Watching the task doesn't work. Sadly jasmine-node
@@ -80,14 +96,19 @@ module.exports = function(grunt) {
 
         function onComplete(runner) {
             if (runner.results().failedCount > 0) {
-                grunt.log.error();
+                process.exit(1);
                 return;
             }
             done(true);
         };
 
-        jasmine.executeSpecsInFolder(specDir, onComplete, false, true);
+        jasmine.executeSpecsInFolder({
+            'specFolders': [specDir],
+            'onComplete': onComplete,
+            'isVerbose': false,
+            'showColors': true
+        });
     });
 
-    grunt.registerTask('default', 'jison lint jasmine rigger min');
+    grunt.registerTask('default', 'jison lint jasmine cjsify min');
 };
