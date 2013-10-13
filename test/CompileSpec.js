@@ -90,6 +90,9 @@ describe('compiler', function(){
         it('option_monad.roy with expected output', function() {
             expectExecutionToHaveExpectedOutput('good/option_monad');
         });
+        it('partial_application.roy with expected output', function() {
+            expectExecutionToHaveExpectedOutput('good/partial_application');
+        });
         it('primitive_types.roy with expected output', function() {
             expectExecutionToHaveExpectedOutput('good/primitive_types');
         });

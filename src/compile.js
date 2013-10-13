@@ -614,15 +614,52 @@ var compileNodeWithEnvToJsAST = function(n, env, opts) {
                     name: n.typeClassInstance
                 });
             }
-
-            return {
-                type: "CallExpression",
-                "arguments": args,
-                callee: compileNode(n.func)
-            };
-            // if(n.func.value == 'import') {
-            //     return importModule(JSON.parse(n.args[0].value), env, opts);
-            // }
+            
+            var func = n.func.value ? env[n.func.value] : undefined;
+            if (func && func.types.length - 1 > args.length) {
+                 // Partial application:
+                 //
+                 // let f a b c = console.log(a ++ b ++ c)
+                 // let g = f "foo"
+                 // g "bar" "baz"
+                 //
+                 // var f = function(a, b, c) {}
+                 // var g = function(a0, a1) { return f("hello", a0, a1); }
+                 // g("bar", "baz")
+                 //
+                var types = func.types;
+                var deferredArgs = types
+                    .slice(args.length, types.length - 1)
+                    .map(function(type, pos) {
+                        return { name: "a" + pos, type: "Identifier" };
+                    });
+                return {
+                    type: "FunctionExpression",
+                    id: null,
+                    params: deferredArgs,
+                    body: {
+                        type: "BlockStatement",
+                        body: [{
+                            type: "ReturnStatement",
+                            argument: {
+                                type: "CallExpression",
+                                "arguments": args.concat(deferredArgs),
+                                callee: compileNode(n.func)
+                            }
+                        }]
+                    }
+                };
+            }
+            else {
+                return {
+                    type: "CallExpression",
+                    "arguments": args,
+                    callee: compileNode(n.func)
+                };
+                // if(n.func.value == 'import') {
+                //     return importModule(JSON.parse(n.args[0].value), env, opts);
+                // }
+            }
         },
         visitPropertyAccess: function() {
             return {
