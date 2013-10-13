@@ -254,6 +254,9 @@ var runRoy = function(argv, opts) {
 
     function sortByDependencies(srcFiles) {
       
+      var basePath = path.resolve(opts.basePath || '.');
+      console.log("Base path: " + basePath);
+      
       function dependencies(src) {
         var source = getFileContents(src);
         var depsMatches = source.match(/^\/{2,}\s*require\s+([\w\.\/]+)\s*$/mg);
@@ -263,12 +266,20 @@ var runRoy = function(argv, opts) {
       }
       
       var sources = _.map(srcFiles, function(src) {
+        var absPath = path.resolve(src).replace(extensions, '');
+        var name = absPath.substring(basePath.length + 1);
         return {
           src: src,
-          name: path.basename(src).replace(extensions, ''),
+          name: name,
           deps: dependencies(src)
         };
       });
+      
+      function depending(src) {
+        return _.filter(sources, function(s) {
+          return _.contains(_.pluck(s.deps, 'name'), src.name);
+        });
+      }
       
       _.each(sources, function(src) {
         src.deps = _.map(src.deps, function(dep) {
@@ -278,6 +289,38 @@ var runRoy = function(argv, opts) {
         });
       });
       
+      // http://en.wikipedia.org/wiki/Topological_sorting
+      function topologicalOrder() {
+        // Empty list that will contain the sorted elements
+        var L = [];
+        
+        // Set of all nodes with no incoming edges
+        var S = _.filter(sources, function(src) {
+          console.log(src.name + " <- " + depending(src).join());
+          return depending(src).length === 0;
+        });
+        
+        while (S.length > 0) {
+          var n = S.shift();
+          L.push(n);
+          while (n.deps.length > 0) {
+            var m = n.deps.shift();
+            if (depending(m).length === 0) { S.push(m); }
+          }
+        }
+        
+        _.each(sources, function(src) {
+          if (src.deps.length > 0)
+          throw "Cyclic dependency detected: " + src.name;
+        });
+        
+        return L;
+      }
+      
+      var sorted = topologicalOrder().reverse();
+      return _.pluck(sorted, 'src');
+
+      /*
       function depends(src1, src2, path) {
         path = path || [];
         if (_.contains(path, src1.name)) {
@@ -296,11 +339,26 @@ var runRoy = function(argv, opts) {
       }
 
       var sorted = sources.sort(cmp);
-      return _.pluck(sorted, 'src');
+      */
+     
+      var topLevelSources = _.filter(sources, function(src) {
+        return _.find(sources, function(s) {
+          return _.contains(s.deps, src.name);
+        }) === undefined;
+      });
+      
+      function dump(depth, src) {
+        var indent = _.map(_.range(0, depth), function() { return ' '; }).join('');
+        console.log(indent + '<- ' + src.name);
+        _.each(src.deps, _.partial(dump, depth + 1));
+      }
+      
+      _.each(topLevelSources, _.partial(dump, 0));
+      
     }
     
     var sorted = sortByDependencies(argv);
-    console.log(sorted);
+    console.log('Compiling Roy files: \n  ' + sorted.join('\n  '));
     
     _.each(sorted, function(filename) {
         // Read the file content.
@@ -318,13 +376,22 @@ var runRoy = function(argv, opts) {
         var SourceMapGenerator = require('source-map').SourceMapGenerator;
         var sourceMap = new SourceMapGenerator({file: path.basename(outputPath)});
 
-        var compiled = compile(source, env, aliases, {
-            nodejs: opts.nodejs,
-            filename: filename,
-            run: opts.run,
-            exported: exported,
-            sourceMap: sourceMap
-        });
+        var compiled;
+        
+        try {
+            console.log("Compiling " + filename);
+            compiled = compile(source, env, aliases, {
+                nodejs: opts.nodejs,
+                filename: filename,
+                run: opts.run,
+                exported: exported,
+                sourceMap: sourceMap
+            });
+        } catch (e) {
+            console.log("\n\nError compiling " + filename + ":");
+            throw e;
+        }
+        
         if(opts.run) {
             // Execute the JavaScript output.
             var output = vm.runInNewContext(compiled.output, sandbox, 'eval');
@@ -373,6 +440,17 @@ var processFlags = function(argv, opts) {
             console.log(compile(source, null, null, opts).output);
         });
         return;
+    case "--base-path":
+        argv.shift();
+        opts.basePath = argv.shift();
+        break;
+        /*
+    case "-o":
+    case "--output":
+        argv.shift();
+        opts.outputPath = argv.shift();
+        break;
+        */
     case "-p":
         opts.includePrelude = false;
         /* falls through */
