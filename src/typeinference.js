@@ -406,9 +406,19 @@ var analyse = function(node, env, nonGeneric, aliases, constraints) {
 
             var resultType = new t.Variable();
             types.push(resultType);
-            unify(new t.FunctionType(types), funType, node.lineno);
-
-            return resultType;
+            
+            if (funType.types && types.length < funType.types.length) {
+                // partial application
+                unify(
+                    new t.FunctionType(types),
+                    new t.FunctionType(_.first(funType.types, types.length)),
+                    node.lineno);
+                return new t.FunctionType(_.rest(funType.types, types.length - 1));
+            }
+            else {
+                unify(new t.FunctionType(types), funType, node.lineno);
+                return resultType;
+            }
         },
         // #### Let binding
         //
