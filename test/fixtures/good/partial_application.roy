@@ -1,4 +1,3 @@
-let f a b c d = console.log(a ++ b ++ c, d)
+let f a b c d = console.log a ++ b ++ c d
 let g = f "foo" "bar"
-let h x = x * 3
-g "baz" (h 2)
+g "baz" 6

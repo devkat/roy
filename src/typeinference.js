@@ -413,7 +413,9 @@ var analyse = function(node, env, nonGeneric, aliases, constraints) {
                     new t.FunctionType(types),
                     new t.FunctionType(_.first(funType.types, types.length)),
                     node.lineno);
-                return new t.FunctionType(_.rest(funType.types, types.length - 1));
+                var deferredTypes = _.rest(funType.types, types.length - 1);
+                node.deferredTypes = _.initial(deferredTypes);
+                return new t.FunctionType(deferredTypes);
             }
             else {
                 unify(new t.FunctionType(types), funType, node.lineno);
